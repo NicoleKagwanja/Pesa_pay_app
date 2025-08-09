@@ -1,12 +1,14 @@
+// ignore_for_file: library_private_types_in_public_api, use_build_context_synchronously
 import 'package:flutter/material.dart';
-// ignore: unused_import
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pesa_pay/services/api_services.dart';
+import 'package:pesa_pay/screen/dashboard/dashboard_screen.dart';
+import 'package:pesa_pay/screen/admin/admin_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _LoginScreenState createState() => _LoginScreenState();
 }
 
@@ -28,30 +30,53 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final String email = emailController.text;
+    final String password = passwordController.text;
+
     setState(() {
       _isLoading = true;
     });
 
     try {
+      final result = await APIService().login(email, password);
+
+      final bool isAdmin = result['employee']['is_admin'] == true;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_email', email);
+      await prefs.setBool('is_admin', isAdmin);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ Login successful!"),
+          content: Text("Login successful!"),
           duration: Duration(seconds: 2),
         ),
       );
 
       await Future.delayed(const Duration(milliseconds: 500));
+
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        if (isAdmin) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminDashboard()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          );
+        }
       }
     } on Exception catch (e) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Login failed: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Login failed: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -116,6 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -138,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
                 child: const Text(
                   "Don't have an account? Sign Up",
-                  style: TextStyle(fontSize: 14),
+                  style: TextStyle(fontSize: 14, color: Colors.blue),
                 ),
               ),
             ],

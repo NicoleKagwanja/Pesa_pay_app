@@ -1,0 +1,12 @@
+pydantic
+sqlalchemy
+uvicorn
+fastapi
+auth
+passlib[bcrypt]
+email-validator
+argon2-cffi
+pytz
+python-jose
+python-multipart
+routers

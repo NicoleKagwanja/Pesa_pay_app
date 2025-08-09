@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Date, Float, Integer, String
+from datetime import datetime
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Float, Integer, String
 from database import Base
 
 class Employee(Base):
@@ -14,18 +15,25 @@ class Employee(Base):
     bank_name = Column(String)
     account_number = Column(String)
     password = Column(String)
+    is_admin = Column(Boolean, default=False)
 
 class OffWeekRequest(Base):
     __tablename__ = "off_week_requests"
+
     id = Column(Integer, primary_key=True, index=True)
-    employee_email = Column(String, index=True)
-    start_date = Column(Date)
-    end_date = Column(Date)
-    status = Column(String, default="pending")
+    employee_email = Column(String, nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    status = Column(Enum("pending", "approved", "rejected"), default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Attendance(Base):
     __tablename__ = "attendance"
+
     id = Column(Integer, primary_key=True, index=True)
     employee_email = Column(String, index=True)
     date = Column(Date)
-    status = Column(String)
+    time_in = Column(String)
+    time_out = Column(String)
+    total_hours = Column(Float)
+    status = Column(String, default="present")

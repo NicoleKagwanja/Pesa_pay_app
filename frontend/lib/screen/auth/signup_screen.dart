@@ -1,3 +1,4 @@
+// ignore_for_file: library_private_types_in_public_api
 import 'package:flutter/material.dart';
 import 'package:pesa_pay/services/api_services.dart';
 
@@ -5,7 +6,6 @@ class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _SignupScreenState createState() => _SignupScreenState();
 }
 
@@ -70,7 +70,7 @@ class _SignupScreenState extends State<SignupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Registration successful!'),
+            content: Text('Registration successful!'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -85,7 +85,7 @@ class _SignupScreenState extends State<SignupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Registration failed: $e'),
+            content: Text('Registration failed: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pesa_pay/screen/activity/activity_screen.dart';
+import 'package:pesa_pay/screen/admin/admin_dashboard.dart';
 import 'package:pesa_pay/screen/auth/login_screen.dart';
 import 'package:pesa_pay/screen/auth/signup_screen.dart';
 import 'package:pesa_pay/screen/dashboard/dashboard_screen.dart';
@@ -11,4 +12,5 @@ Map<String, WidgetBuilder> routes = {
   '/activity': (context) => ActivityScreen(),
   '/login': (context) => LoginScreen(),
   '/signup': (context) => SignupScreen(),
+  '/admin': (context) => AdminDashboard(),
 };

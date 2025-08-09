@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal, Base, engine
-from models import Employee, OffWeekRequest, Attendance
-from schemas import EmployeeCreate, Employee
+from models import OffWeekRequest, Attendance
+from schemas import EmployeeCreate, EmployeeResponse
 from crud import create_employee, get_employee_by_email, get_all_employees
-from datetime import date, datetime
+from datetime import datetime
 from passlib.context import CryptContext
 
 ph = CryptContext(schemes=["argon2"], deprecated="auto")
 
-router = APIRouter()
+router = APIRouter(tags=["auth"])
 
 def get_db():
     db = SessionLocal()
@@ -20,7 +20,7 @@ def get_db():
 
 Base.metadata.create_all(bind=engine)
 
-@router.post("/signup", response_model=Employee)
+@router.post("/signup", response_model=EmployeeResponse)
 def register_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     """
     Register a new county employee.
@@ -40,16 +40,29 @@ def register_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     db_user = get_employee_by_email(db, email=employee.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-    return create_employee(db=db, employee=employee)
 
+    new_employee = create_employee(db=db, employee=employee)
 
-@router.get("/employees", response_model=list[Employee])
+    return EmployeeResponse(
+        id=new_employee.id,
+        name=new_employee.name,
+        email=new_employee.email,
+        phone=new_employee.phone,
+        gender=new_employee.gender,
+        department=new_employee.department,
+        salary=new_employee.salary,
+        bank_name=new_employee.bank_name,
+        account_number=new_employee.account_number,
+        is_admin=new_employee.is_admin
+    )
+
+@router.get("/employees", response_model=list[EmployeeResponse])
 def get_all_employees_endpoint(db: Session = Depends(get_db)):
     """Get a list of all employees."""
     return get_all_employees(db)
 
 
-@router.get("/employee/{email}", response_model=Employee)
+@router.get("/employee/{email}", response_model=EmployeeResponse)
 def get_employee_by_email_endpoint(email: str, db: Session = Depends(get_db)):
     """Get a single employee by email."""
     db_user = get_employee_by_email(db, email=email)
@@ -141,10 +154,10 @@ def login(employee_login: dict, db: Session = Depends(get_db)):
             "department": db_user.department,
             "salary": db_user.salary,
             "bank_name": db_user.bank_name,
-            "account_number": db_user.account_number
+            "account_number": db_user.account_number,
+            "is_admin": db_user.is_admin
         }
     }
-
 
 @router.get("/attendance/{email}")
 def get_attendance(email: str, db: Session = Depends(get_db)):
@@ -160,7 +173,6 @@ def get_attendance(email: str, db: Session = Depends(get_db)):
         ],
         "summary": f"{present_days}/{total_days} days present"
     }
-
 
 @router.post("/off-week/request")
 def request_off_week(
@@ -194,4 +206,26 @@ def request_off_week(
             "end_date": new_request.end_date.isoformat(),
             "status": new_request.status
         }
+    }
+
+@router.get("/profile/me")
+def get_profile(email: str, db: Session = Depends(get_db)):
+    """
+    Get the full profile of an employee by email.
+    Used in the Flutter Profile Page.
+    """
+    db_user = get_employee_by_email(db, email=email)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    return {
+        "id": db_user.id,
+        "name": db_user.name,
+        "email": db_user.email,
+        "gender": db_user.gender,
+        "department": db_user.department,
+        "phone": db_user.phone,
+        "salary": db_user.salary,
+        "bank_name": db_user.bank_name,
+        "account_number": db_user.account_number
     }
