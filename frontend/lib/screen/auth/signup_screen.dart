@@ -46,12 +46,10 @@ class _SignupScreenState extends State<SignupScreen> {
     if (_isLoading) return;
 
     if (!_formKey.currentState!.validate()) {
-      debugPrint('Form validation failed');
       return;
     }
 
     _formKey.currentState!.save();
-    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -61,11 +59,7 @@ class _SignupScreenState extends State<SignupScreen> {
       final data = Map<String, dynamic>.from(_userData);
       data['password'] = _passwordController.text;
 
-      debugPrint('Attempting to register with: $data');
-
       await APIService().registerUser(data);
-
-      debugPrint('Registration successful');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +75,6 @@ class _SignupScreenState extends State<SignupScreen> {
         }
       }
     } on Exception catch (e) {
-      debugPrint('Registration failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -103,223 +96,271 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign Up'), elevation: 1),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Please enter your name';
-                    return null;
-                  },
-                  onSaved: (value) => _userData['name'] = value!,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Email is required';
-                    if (!value!.contains('@')) return 'Enter a valid email';
-                    return null;
-                  },
-                  onSaved: (value) => _userData['email'] = value!,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Phone number is required';
-                    }
-                    if (value!.length < 10) return 'Enter a valid phone number';
-                    return null;
-                  },
-                  onSaved: (value) => _userData['phone'] = value!,
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Select Gender',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.wc),
-                  ),
-                  hint: const Text('Select Gender'),
-                  value: selectedGender,
-                  items: genders.map((gender) {
-                    return DropdownMenuItem(value: gender, child: Text(gender));
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedGender = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null) return 'Please select your gender';
-                    return null;
-                  },
-                  onSaved: (value) => _userData['gender'] = value!,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Department',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.work),
-                  ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Please enter your department';
-                    }
-                    return null;
-                  },
-                  onSaved: (value) => _userData['department'] = value!,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Bank Name',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.account_balance),
-                  ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Bank name is required';
-                    return null;
-                  },
-                  onSaved: (value) => _userData['bank_name'] = value!,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Account Number',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.credit_card),
-                  ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Account number is required';
-                    }
-                    if (value!.length < 6) return 'Account number too short';
-                    return null;
-                  },
-                  onSaved: (value) => _userData['account_number'] = value!,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                  obscureText: _obscurePassword,
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Password is required';
-                    if (value!.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm Password',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
-                    ),
-                  ),
-                  obscureText: _obscureConfirmPassword,
-                  validator: (value) {
-                    if (value != _passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      backgroundColor: Theme.of(context).primaryColor,
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Register',
-                            style: TextStyle(fontSize: 16, color: Colors.white),
-                          ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Already have an account? Login'),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            height: 80,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
+            child: Image.asset(
+              'assets/images/kenyanflag.jpg',
+              fit: BoxFit.cover,
+            ),
           ),
-        ),
+
+          Container(
+            width: double.infinity,
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            alignment: Alignment.center,
+            child: const Text(
+              "PPay",
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF003366),
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Please enter your name';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => _userData['name'] = value!,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) return 'Email is required';
+                        if (!value!.contains('@')) return 'Enter a valid email';
+                        return null;
+                      },
+                      onSaved: (value) => _userData['email'] = value!,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone),
+                      ),
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Phone number is required';
+                        }
+                        if (value!.length < 10) {
+                          return 'Enter a valid phone number';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => _userData['phone'] = value!,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Select Gender',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.wc),
+                      ),
+                      hint: const Text('Select Gender'),
+                      value: selectedGender,
+                      items: genders.map((gender) {
+                        return DropdownMenuItem(
+                          value: gender,
+                          child: Text(gender),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedGender = value;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null) return 'Please select your gender';
+                        return null;
+                      },
+                      onSaved: (value) => _userData['gender'] = value!,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Department',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.work),
+                      ),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Please enter your department';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => _userData['department'] = value!,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Bank Name',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.account_balance),
+                      ),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Bank name is required';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => _userData['bank_name'] = value!,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Account Number',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.credit_card),
+                      ),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Account number is required';
+                        }
+                        if (value!.length < 6) {
+                          return 'Account number too short';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => _userData['account_number'] = value!,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: _obscurePassword,
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return 'Password is required';
+                        }
+                        if (value!.length < 6) {
+                          return 'Password must be at least 6 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm Password',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirmPassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: _obscureConfirmPassword,
+                      validator: (value) {
+                        if (value != _passwordController.text) {
+                          return 'Passwords do not match';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _submitForm,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          backgroundColor: Theme.of(context).primaryColor,
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text(
+                                'Register',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Already have an account? Login'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
