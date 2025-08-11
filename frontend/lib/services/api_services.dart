@@ -18,7 +18,6 @@ class APIService {
   factory APIService() => _instance;
 
   static const Duration _timeout = Duration(seconds: 10);
-
   Map<String, String> get headers => {'Content-Type': 'application/json'};
 
   Future<T> _makeRequest<T>(
@@ -211,8 +210,4 @@ class APIService {
   @Deprecated('Use getEmployeeByEmail instead')
   Future<Map<String, dynamic>> getProfile(String email) =>
       getEmployeeByEmail(email);
-
-  Future<void> logTimeIn(String email, String timeIn) async {}
-
-  Future logTimeOut(String email, String timeOut) async {}
 }

@@ -17,6 +17,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime? _start, _end;
   String? _pendingOffWeek;
   String _userName = "Employee";
+  String _department = "Loading..."; // Will be updated
   double _totalHours = 0.0;
   bool _isClockedIn = false;
   bool _isClocking = false;
@@ -33,8 +34,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _startDateController = TextEditingController();
     _endDateController = TextEditingController();
-    _checkConnectionAndLoad(); // Start loading
-    _listenToConnection(); // Listen for network changes
+    _checkConnectionAndLoad();
+    _listenToConnection();
   }
 
   @override
@@ -49,18 +50,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (isConnected) {
       setState(() {
         _isOnline = true;
-        _loading = true; // Start loading indicator
+        _loading = true;
       });
-      await _loadAllData(); // Load user + attendance
+      await _loadUserData();
     } else {
       setState(() {
         _isOnline = false;
-        _loading = false; // Stop loading if offline
+        _loading = false;
       });
     }
   }
 
-  Future<void> _loadAllData() async {
+  Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final email = prefs.getString('user_email') ?? 'nicole@gmail.com';
 
@@ -71,7 +72,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _userName = profile['name']?.split(' ').first ?? "User";
-          _totalHours = summary['total_hours_worked']?.toDouble() ?? 0.0;
+          _department = profile['department'] ?? "Unknown";
+          _totalHours = (summary['total_hours'] as num?)?.toDouble() ?? 0.0;
           _loading = false;
         });
       }
@@ -102,7 +104,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text("Back online!")));
-          _loadAllData();
+          _loadUserData();
         }
       }
     });
@@ -219,11 +221,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     try {
-      await apiService.logTimeIn(email, _timeIn);
+      await apiService.logAttendance(email: email, timeIn: _timeIn);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Clocked In at $_timeIn")));
-    } catch (e) {
+    } on Exception catch (e) {
       setState(() => _isClockedIn = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -256,7 +258,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     try {
-      final result = await apiService.logTimeOut(email, _timeOut);
+      final result = await apiService.logAttendance(
+        email: email,
+        timeOut: _timeOut,
+      );
       final hours = (result['total_hours'] as num?)?.toDouble() ?? 0.0;
 
       setState(() {
@@ -271,7 +276,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       );
-    } catch (e) {
+    } on Exception catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("❌ Failed to clock out: $e"),
@@ -378,10 +383,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ✅ Welcome Message
             Text(
               "Welcome, $_userName!",
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
+
+            Text(
+              "Department: $_department",
+              style: const TextStyle(fontSize: 16, color: Colors.blue),
+            ),
+
             const SizedBox(height: 8),
             Text(
               "Manage your schedule and attendance.",
@@ -475,6 +487,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
@@ -572,6 +585,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
             const Text(
               "Attendance Summary",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
