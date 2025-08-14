@@ -24,6 +24,7 @@ class OffWeekRequest(Base):
     employee_email = Column(String, nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
+    reason = Column(String, nullable=False)
     status = Column(Enum("pending", "approved", "rejected"), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
 

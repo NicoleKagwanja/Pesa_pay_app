@@ -14,10 +14,11 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   late TextEditingController _startDateController;
   late TextEditingController _endDateController;
+  late TextEditingController _reasonController;
   DateTime? _start, _end;
   String? _pendingOffWeek;
   String _userName = "Employee";
-  String _department = "Loading..."; // Will be updated
+  String _department = "Loading...";
   double _totalHours = 0.0;
   bool _isClockedIn = false;
   bool _isClocking = false;
@@ -34,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _startDateController = TextEditingController();
     _endDateController = TextEditingController();
+    _reasonController = TextEditingController();
     _checkConnectionAndLoad();
     _listenToConnection();
   }
@@ -42,6 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     _startDateController.dispose();
     _endDateController.dispose();
+    _reasonController.dispose();
     super.dispose();
   }
 
@@ -86,7 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("⚠️ Failed to load data: $e"),
+          content: Text("Failed to load data: $e"),
           backgroundColor: Colors.red,
         ),
       );
@@ -175,24 +178,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
+    final reason = _reasonController.text.trim();
+    if (reason.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enter a reason for your off-week"),
+        ),
+      );
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final email = prefs.getString('user_email') ?? "nicole@gmail.com";
 
     try {
       await apiService.requestOffWeek(
-        email,
-        formatDate(_start),
-        formatDate(_end),
+        email: email,
+        startDate: formatDate(_start),
+        endDate: formatDate(_end),
+        reason: reason,
       );
 
       setState(() {
         _pendingOffWeek =
-            "Off-week from ${formatDate(_start)} to ${formatDate(_end)} is pending approval.";
+            "Off-week from ${formatDate(_start)} to ${formatDate(_end)} is pending approval. Reason: $reason";
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Off-week request submitted!")),
       );
+
+      _reasonController.clear();
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -279,7 +295,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } on Exception catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("❌ Failed to clock out: $e"),
+          content: Text("Failed to clock out: $e"),
           backgroundColor: Colors.red,
         ),
       );
@@ -383,17 +399,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ Welcome Message
             Text(
               "Welcome, $_userName!",
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-
             Text(
               "Department: $_department",
               style: const TextStyle(fontSize: 16, color: Colors.blue),
             ),
-
             const SizedBox(height: 8),
             Text(
               "Manage your schedule and attendance.",
@@ -530,6 +543,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         labelText: "End Date",
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.calendar_today, size: 18),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: _reasonController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: "Reason for Off-Week",
+                        hintText: "e.g., Family vacation, Medical leave",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.edit, size: 18),
                       ),
                     ),
                     const SizedBox(height: 20),

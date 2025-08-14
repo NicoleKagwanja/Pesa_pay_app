@@ -82,13 +82,23 @@ class APIService {
     );
   }
 
-  Future<void> requestOffWeek(String email, String start, String end) async {
+  Future<void> requestOffWeek({
+    required String email,
+    required String startDate,
+    required String endDate,
+    required String reason,
+  }) async {
     final uri = Uri.parse('$baseURL/off-week/request');
     await _makeRequest<void>(
       http.post(
         uri,
         headers: headers,
-        body: jsonEncode({"email": email, "start": start, "end": end}),
+        body: jsonEncode({
+          'employee_email': email,
+          'start_date': startDate,
+          'end_date': endDate,
+          'reason': reason,
+        }),
       ),
       (_) {},
     );

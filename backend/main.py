@@ -55,7 +55,7 @@ async def favicon():
     return FileResponse("static/favicon.ico")
 
 app.include_router(auth.router, prefix="/api/v1")
-app.include_router(off_week.router)
+app.include_router(off_week.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(salary.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")

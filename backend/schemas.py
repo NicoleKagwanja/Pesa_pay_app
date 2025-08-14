@@ -1,5 +1,7 @@
+from datetime import date, datetime
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
+
 
 class EmployeeBase(BaseModel):
     name: str
@@ -11,14 +13,17 @@ class EmployeeBase(BaseModel):
     bank_name: str
     account_number: str
 
+
 class EmployeeCreate(EmployeeBase):
     password: str
+
 
 class EmployeeResponse(EmployeeBase):
     id: int
     is_admin: bool
 
     model_config = {"from_attributes": True}
+
 
 EmployeeCreate.model_config['json_schema_extra'] = {
     "examples": [
@@ -36,38 +41,60 @@ EmployeeCreate.model_config['json_schema_extra'] = {
     ]
 }
 
+
 class AttendanceCreate(BaseModel):
     employee_email: str
     time_in: Optional[str] = None
     time_out: Optional[str] = None
 
+
 class AttendanceResponse(BaseModel):
     id: int
     employee_email: str
-    date: str
-    time_in: Optional[str]
-    time_out: Optional[str]
-    total_hours: Optional[float]
+    date: date
+    time_in: Optional[str] = None
+    time_out: Optional[str] = None
+    total_hours: Optional[float] = None
     status: str
+
     model_config = {"from_attributes": True}
+
 
 class OffWeekRequestCreate(BaseModel):
-    email: EmailStr
-    start: str
-    end: str
+    employee_email: EmailStr
+    start_date: date
+    end_date: date
+    reason: str
 
-    model_config = {"from_attributes": True}
-
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "employee_email": "ann@gmail.com",
+                "start_date": "2025-08-15",
+                "end_date": "2025-08-20",
+                "reason": "Family vacation"
+            }
+        },
+        "from_attributes": True
+    }
 
 
 class OffWeekRequestResponse(BaseModel):
     id: int
     employee_email: str
-    start_date: str
-    end_date: str
+    start_date: date
+    end_date: date
+    reason: str
     status: str
-    created_at: str
+    created_at: Optional[datetime] = None
+
     model_config = {"from_attributes": True}
+
+
+class OffWeekRequestListResponse(BaseModel):
+    count: int
+    requests: List[OffWeekRequestResponse]
+
 
 class LoginRequest(BaseModel):
     email: EmailStr

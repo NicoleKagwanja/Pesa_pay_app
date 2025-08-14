@@ -34,7 +34,7 @@ def calculate_salary(email: str, db: Session = Depends(get_db)):
     - Add overtime pay
     - Adjust for public holidays (double pay)
     """
-    # Get employee
+
     db_user = get_employee_by_email(db, email=email)
     if not db_user:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -64,7 +64,7 @@ def calculate_salary(email: str, db: Session = Depends(get_db)):
         rec_date = record.date
         if record.status == "present":
             if rec_date in PUBLIC_HOLIDAYS:
-                holiday_bonus += base_salary_per_day * 2  # Double pay
+                holiday_bonus += base_salary_per_day * 2
             else:
                 work_days += 1
         elif record.status == "overtime":
@@ -73,7 +73,6 @@ def calculate_salary(email: str, db: Session = Depends(get_db)):
             if is_work_day(rec_date):
                 unauthorized_absences += 1
 
-    # Calculate final salary
     base_pay = work_days * base_salary_per_day
     overtime_pay = overtime_hours * overtime_rate
     deductions = unauthorized_absences * deduction_per_absence
