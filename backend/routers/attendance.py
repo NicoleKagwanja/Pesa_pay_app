@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, date, timedelta
-import pytz
+import pytz # type: ignore
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional
+from typing import Optional, List
 from database import SessionLocal
 from models import Attendance
 from sqlalchemy.exc import IntegrityError
@@ -18,6 +18,7 @@ def get_db():
         db.close()
 
 ea_tz = pytz.timezone("Africa/Nairobi")
+
 
 class AttendanceCreate(BaseModel):
     employee_email: EmailStr
@@ -60,14 +61,18 @@ class AttendanceRequest(BaseModel):
         except ValueError:
             raise ValueError("Time must be in HH:MM format (e.g., 08:30)")
 
+class AttendanceRecordResponse(BaseModel):
+    id: int
+    date: str
+    time_in: Optional[str]
+    time_out: Optional[str]
+    total_hours: Optional[float]
+
+    class Config:
+        from_attributes = True
 
 @router.post("/attendance/log", operation_id="log_attendance_clock_in_out")
 def log_attendance(data: AttendanceCreate, db: Session = Depends(get_db)):
-    """
-    Clock in or out for the current day (East Africa Time).
-    - If `time_in` is provided: clocks in
-    - If `time_out` is provided: clocks out
-    """
     try:
         data.validate_action()
     except ValueError as e:
@@ -159,9 +164,6 @@ def log_attendance(data: AttendanceCreate, db: Session = Depends(get_db)):
 
 @router.post("/attendance/manual", operation_id="admin_create_manual_attendance")
 def create_attendance_manual(request: AttendanceRequest, db: Session = Depends(get_db)):
-    """
-    [Admin] Manually create or update an attendance record with a specific date.
-    """
     record = (
         db.query(Attendance)
         .filter(
@@ -212,11 +214,17 @@ def create_attendance_manual(request: AttendanceRequest, db: Session = Depends(g
         raise HTTPException(status_code=500, detail="Internal server error.")
 
 
+@router.get("/attendance/records/{email}", response_model=List[AttendanceRecordResponse], operation_id="get_attendance_records")
+def get_attendance_records(email: str, db: Session = Depends(get_db)):
+    records = db.query(Attendance).filter(
+        Attendance.employee_email == email
+    ).order_by(Attendance.date.desc()).all()
+    
+    return records
+
+
 @router.get("/attendance/summary/{email}", operation_id="get_employee_attendance_summary")
 def get_attendance_summary(email: str, db: Session = Depends(get_db)):
-    """
-    Get summary of attendance for an employee.
-    """
     records = db.query(Attendance).filter(Attendance.employee_email == email).all()
     total_hours = sum(r.total_hours for r in records if r.total_hours is not None)
     days_worked = len([r for r in records if r.time_in])
@@ -224,16 +232,14 @@ def get_attendance_summary(email: str, db: Session = Depends(get_db)):
     return {
         "employee_email": email,
         "total_hours": round(total_hours, 2),
-        "days_worked": days_worked,
+        "days_present": days_worked, 
         "summary": f"Worked {days_worked} days, {total_hours:.1f} hours this month"
     }
 
 
 @router.get("/admin/attendance/report", operation_id="get_admin_attendance_report")
 def get_attendance_report(db: Session = Depends(get_db)):
-    """
-    Get full attendance report for all employees (admin only).
-    """
+
     employee_emails = db.query(Attendance.employee_email).distinct().all()
     report = []
 

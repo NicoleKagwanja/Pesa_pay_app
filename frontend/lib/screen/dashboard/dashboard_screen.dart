@@ -1,8 +1,9 @@
-// ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api
+// ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api, unused_field
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pesa_pay/services/api_services.dart';
 import 'package:pesa_pay/services/network_service.dart';
+import 'package:intl/intl.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -12,14 +13,13 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  late TextEditingController _startDateController;
-  late TextEditingController _endDateController;
   late TextEditingController _reasonController;
   DateTime? _start, _end;
   String? _pendingOffWeek;
   String _userName = "Employee";
   String _department = "Loading...";
   double _totalHours = 0.0;
+  int _daysPresent = 0;
   bool _isClockedIn = false;
   bool _isClocking = false;
   String _timeIn = "";
@@ -27,14 +27,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   bool _isOnline = true;
 
+  DateTime _calendarMonth = DateTime.now();
+  List<Map<String, dynamic>> _attendanceRecords = [];
+
   final NetworkService _networkService = NetworkService();
   final APIService apiService = APIService();
 
   @override
   void initState() {
     super.initState();
-    _startDateController = TextEditingController();
-    _endDateController = TextEditingController();
     _reasonController = TextEditingController();
     _checkConnectionAndLoad();
     _listenToConnection();
@@ -42,8 +43,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
-    _startDateController.dispose();
-    _endDateController.dispose();
     _reasonController.dispose();
     super.dispose();
   }
@@ -56,6 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _loading = true;
       });
       await _loadUserData();
+      await _loadAttendanceRecords();
     } else {
       setState(() {
         _isOnline = false;
@@ -77,6 +77,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _userName = profile['name']?.split(' ').first ?? "User";
           _department = profile['department'] ?? "Unknown";
           _totalHours = (summary['total_hours'] as num?)?.toDouble() ?? 0.0;
+          _daysPresent = (summary['days_present'] as int?) ?? 0;
           _loading = false;
         });
       }
@@ -96,6 +97,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _loadAttendanceRecords() async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('user_email') ?? 'nicole@gmail.com';
+
+    try {
+      final records = await apiService.getAttendanceRecords(email);
+      if (mounted) {
+        setState(() {
+          _attendanceRecords = List<Map<String, dynamic>>.from(records);
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load attendance records: $e");
+    }
+  }
+
   void _listenToConnection() {
     _networkService.onConnectivityChanged.listen((isConnected) {
       if (mounted) {
@@ -108,112 +125,214 @@ class _DashboardScreenState extends State<DashboardScreen> {
             context,
           ).showSnackBar(const SnackBar(content: Text("Back online!")));
           _loadUserData();
+          _loadAttendanceRecords();
         }
       }
     });
   }
 
-  String formatDate(DateTime? date) {
-    if (date == null) return "Not set";
-    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-  }
-
-  Future<void> _selectDate(bool isStart) async {
-    if (!_isOnline) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No internet connection")));
-      return;
-    }
-
-    final DateTime? selected = await showDatePicker(
-      context: context,
-      initialDate: _start ?? DateTime.now(),
-      firstDate: DateTime(2024),
-      lastDate: DateTime(2040),
+  bool _hasAttendanceOnDate(DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return _attendanceRecords.any(
+      (record) =>
+          record['date'] == dateStr ||
+          (record['time_in'] != null &&
+              record['date']?.contains(dateStr) == true),
     );
-
-    if (selected == null) return;
-
-    if (isStart) {
-      _start = selected;
-      _startDateController.text = formatDate(_start);
-      _end = null;
-      _endDateController.text = '';
-    } else {
-      if (_start != null && selected.isBefore(_start!)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("End date cannot be before start date."),
-          ),
-        );
-        return;
-      }
-      _end = selected;
-      _endDateController.text = formatDate(_end);
-    }
   }
 
-  void _submitOffWeekRequest() async {
-    if (!_isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No internet connection. Please try again later."),
+  void _changeMonth(int offset) {
+    setState(() {
+      _calendarMonth = DateTime(
+        _calendarMonth.year,
+        _calendarMonth.month + offset,
+        1,
+      );
+    });
+  }
+
+  Widget _buildAttendanceCalendar() {
+    final now = DateTime.now();
+    final firstDayOfMonth = DateTime(
+      _calendarMonth.year,
+      _calendarMonth.month,
+      1,
+    );
+    final lastDayOfMonth = DateTime(
+      _calendarMonth.year,
+      _calendarMonth.month + 1,
+      0,
+    );
+    final daysInMonth = lastDayOfMonth.day;
+    final firstWeekday = firstDayOfMonth.weekday;
+
+    final weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  DateFormat('MMMM yyyy').format(_calendarMonth),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: () => _changeMonth(-1),
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: () =>
+                          _calendarMonth.isBefore(
+                            DateTime(now.year, now.month + 1, 1),
+                          )
+                          ? null
+                          : () => _changeMonth(1),
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: weekdays
+                  .map(
+                    (day) => SizedBox(
+                      width: 40,
+                      child: Text(
+                        day,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                childAspectRatio: 1,
+                crossAxisSpacing: 4,
+                mainAxisSpacing: 4,
+              ),
+              itemCount: 42,
+              itemBuilder: (context, index) {
+                final dayNumber = index - (firstWeekday - 1);
+                if (dayNumber < 1 || dayNumber > daysInMonth) {
+                  return const SizedBox();
+                }
+
+                final date = DateTime(
+                  _calendarMonth.year,
+                  _calendarMonth.month,
+                  dayNumber,
+                );
+                final hasAttendance = _hasAttendanceOnDate(date);
+                final isToday =
+                    DateFormat('yyyy-MM-dd').format(date) ==
+                    DateFormat('yyyy-MM-dd').format(now);
+                final isFuture = date.isAfter(
+                  DateTime(now.year, now.month, now.day),
+                );
+
+                return Container(
+                  decoration: BoxDecoration(
+                    color: isToday
+                        ? Colors.blue[100]
+                        : hasAttendance
+                        ? Colors.green[100]
+                        : isFuture
+                        ? Colors.grey[100]
+                        : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isToday
+                          ? Colors.blue
+                          : hasAttendance
+                          ? Colors.green
+                          : Colors.transparent,
+                      width: isToday || hasAttendance ? 2 : 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$dayNumber',
+                      style: TextStyle(
+                        color: isFuture
+                            ? Colors.grey
+                            : (hasAttendance
+                                  ? Colors.green[800]
+                                  : Colors.black87),
+                        fontWeight: isToday
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // Legend
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildLegendItem(Colors.green, 'Present'),
+                const SizedBox(width: 16),
+                _buildLegendItem(Colors.blue, 'Today'),
+                const SizedBox(width: 16),
+                _buildLegendItem(Colors.grey, 'No Record'),
+              ],
+            ),
+          ],
         ),
-      );
-      return;
-    }
+      ),
+    );
+  }
 
-    if (_start == null || _end == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select both start and end dates")),
-      );
-      return;
-    }
-
-    if (_end!.isBefore(_start!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("End date cannot be before start date.")),
-      );
-      return;
-    }
-
-    final reason = _reasonController.text.trim();
-    if (reason.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please enter a reason for your off-week"),
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            // ignore: deprecated_member_use
+            color: color.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: color, width: 1.5),
+          ),
         ),
-      );
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString('user_email') ?? "example@email.com";
-
-    try {
-      await apiService.requestOffWeek(
-        email: email,
-        startDate: formatDate(_start),
-        endDate: formatDate(_end),
-        reason: reason,
-      );
-
-      setState(() {
-        _pendingOffWeek =
-            "Off-week from ${formatDate(_start)} to ${formatDate(_end)} is pending approval. Reason: $reason";
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Off-week request submitted!")),
-      );
-
-      _reasonController.clear();
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to submit: $e")));
-    }
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
   }
 
   Future<void> _clockIn() async {
@@ -241,6 +360,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Clocked In at $_timeIn")));
+      _loadAttendanceRecords();
     } on Exception catch (e) {
       setState(() => _isClockedIn = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -292,6 +412,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       );
+      _loadAttendanceRecords();
     } on Exception catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -327,7 +448,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: const BoxDecoration(
                 color: Color.fromARGB(255, 42, 94, 107),
               ),
-              child: Text(
+              child: const Text(
                 "Pesa Pay\nEmployee Portal",
                 style: TextStyle(
                   color: Colors.white,
@@ -501,116 +622,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 24),
 
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Apply for Off Week",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      "Select your preferred dates. HR will review your request.",
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _startDateController,
-                      readOnly: true,
-                      onTap: () => _selectDate(true),
-                      decoration: const InputDecoration(
-                        labelText: "Start Date",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.calendar_today, size: 18),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _endDateController,
-                      readOnly: true,
-                      onTap: () => _selectDate(false),
-                      decoration: const InputDecoration(
-                        labelText: "End Date",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.calendar_today, size: 18),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: _reasonController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: "Reason for Off-Week",
-                        hintText: "e.g., Family vacation, Medical leave",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.edit, size: 18),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _submitOffWeekRequest,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0066CC),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 30,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        "Submit Request",
-                        style: TextStyle(fontSize: 16, color: Colors.white),
-                      ),
-                    ),
-                    if (_pendingOffWeek != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[100],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.hourglass_empty,
-                              color: Colors.orange,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _pendingOffWeek!,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.orange[800],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
             const Text(
               "Attendance Summary",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -628,14 +639,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Card(
               child: ListTile(
                 title: const Text("Days Present"),
-                trailing: const Text(
-                  "24",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                trailing: Text(
+                  "$_daysPresent",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
             const SizedBox(height: 24),
 
+            // Salary Status Card
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
@@ -673,6 +685,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+
+            //Activity Calendar at Bottom
+            const Text(
+              "Activity Calendar",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            _buildAttendanceCalendar(),
           ],
         ),
       ),

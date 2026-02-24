@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal, Base, engine
-from models import Employee, OffWeekRequest, Attendance, PublicHoliday
+from models import Employee, Attendance, PublicHoliday
 from schemas import EmployeeCreate, EmployeeResponse
 from crud import create_employee, get_employee_by_email, get_all_employees
 from datetime import datetime
-from passlib.context import CryptContext
+from passlib.context import CryptContext # type: ignore
 
 ph = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -174,40 +174,6 @@ def get_attendance(email: str, db: Session = Depends(get_db)):
         "summary": f"{present_days}/{total_days} days present"
     }
 
-@router.post("/off-week/request")
-def request_off_week(
-    employee_email: str,
-    start_date: str,
-    end_date: str,
-    db: Session = Depends(get_db)
-):
-    try:
-        start = datetime.date.fromisoformat(start_date)
-        end = datetime.date.fromisoformat(end_date)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
-
-    new_request = OffWeekRequest(
-        employee_email=employee_email,
-        start_date=start,
-        end_date=end,
-        status="pending"
-    )
-    db.add(new_request)
-    db.commit()
-    db.refresh(new_request)
-
-    return {
-        "message": "Off-week request submitted successfully",
-        "request": {
-            "id": new_request.id,
-            "employee_email": new_request.employee_email,
-            "start_date": new_request.start_date.isoformat(),
-            "end_date": new_request.end_date.isoformat(),
-            "status": new_request.status
-        }
-    }
-
 @router.get("/profile/me")
 def get_profile(email: str, db: Session = Depends(get_db)):
     """
@@ -254,38 +220,6 @@ def get_all_employees(db: Session = Depends(get_db)):
         }
         for emp in employees
     ]
-
-@router.get("/admin/off-week/pending")
-def get_pending_off_weeks(db: Session = Depends(get_db)):
-    requests = db.query(OffWeekRequest).filter(OffWeekRequest.status == "pending").all()
-    return [
-        {
-            "id": r.id,
-            "employee_email": r.employee_email,
-            "start_date": str(r.start_date),
-            "end_date": str(r.end_date),
-            "status": r.status
-        }
-        for r in requests
-    ]
-
-@router.post("/admin/off-week/approve/{id}")
-def approve_off_week(id: int, db: Session = Depends(get_db)):
-    request = db.query(OffWeekRequest).filter(OffWeekRequest.id == id).first()
-    if not request:
-        raise HTTPException(status_code=404, detail="Request not found")
-    request.status = "approved"
-    db.commit()
-    return {"message": "Approved successfully"}
-
-@router.post("/admin/off-week/reject/{id}")
-def reject_off_week(id: int, db: Session = Depends(get_db)):
-    request = db.query(OffWeekRequest).filter(OffWeekRequest.id == id).first()
-    if not request:
-        raise HTTPException(status_code=404, detail="Request not found")
-    request.status = "rejected"
-    db.commit()
-    return {"message": "Rejected successfully"}
 
 @router.get("/admin/attendance/report")
 def get_attendance_report(db: Session = Depends(get_db)):

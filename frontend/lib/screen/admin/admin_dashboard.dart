@@ -14,7 +14,6 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   List<Map<String, dynamic>> _employees = [];
-  List<Map<String, dynamic>> _pendingRequests = [];
   List<Map<String, dynamic>> _attendanceReport = [];
   List<Map<String, dynamic>> _calendarEvents = [];
   bool _loading = true;
@@ -41,14 +40,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     try {
       final employees = await apiService.getAllEmployees();
-      final pending = await apiService.getPendingOffWeeks();
       final attendance = await apiService.getAttendanceReport();
       final events = await apiService.getCalendarEvents();
 
       if (mounted) {
         setState(() {
           _employees = List<Map<String, dynamic>>.from(employees);
-          _pendingRequests = List<Map<String, dynamic>>.from(pending);
           _attendanceReport = List<Map<String, dynamic>>.from(attendance);
           _calendarEvents = List<Map<String, dynamic>>.from(events);
           _loading = false;
@@ -65,42 +62,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           content: Text("❌ Failed to load data: $e"),
           backgroundColor: Colors.red,
         ),
-      );
-    }
-  }
-
-  Future<void> _approveRequest(int id) async {
-    try {
-      await apiService.approveOffWeek(id);
-      if (mounted) {
-        setState(() {
-          _pendingRequests.removeWhere((r) => r['id'] == id);
-        });
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("✅ Request approved")));
-    } on Exception catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Failed: $e"), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _rejectRequest(int id) async {
-    try {
-      await apiService.rejectOffWeek(id);
-      if (mounted) {
-        setState(() {
-          _pendingRequests.removeWhere((r) => r['id'] == id);
-        });
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("✅ Request rejected")));
-    } on Exception catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Failed: $e"), backgroundColor: Colors.red),
       );
     }
   }
@@ -493,86 +454,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           ),
                         ),
                       const SizedBox(height: 24),
-
-                      const Text(
-                        "Pending Off-Week Requests",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (_pendingRequests.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text(
-                              "No pending off-week requests.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        )
-                      else
-                        ..._pendingRequests.map(
-                          (req) => Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        "Off-Week Request #${req['id']}",
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.hourglass_empty,
-                                        color: Colors.orange,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text("Employee: ${req['employee_email']}"),
-                                  Text(
-                                    "Dates: ${req['start_date']} to ${req['end_date']}",
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: ElevatedButton(
-                                          onPressed: () =>
-                                              _approveRequest(req['id'] as int),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.green,
-                                          ),
-                                          child: const Text("Approve"),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: ElevatedButton(
-                                          onPressed: () =>
-                                              _rejectRequest(req['id'] as int),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.red,
-                                          ),
-                                          child: const Text("Reject"),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),

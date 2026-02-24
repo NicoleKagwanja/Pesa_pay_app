@@ -60,43 +60,6 @@ class AttendanceResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-
-class OffWeekRequestCreate(BaseModel):
-    employee_email: EmailStr
-    start_date: date
-    end_date: date
-    reason: str
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "employee_email": "ann@gmail.com",
-                "start_date": "2025-08-15",
-                "end_date": "2025-08-20",
-                "reason": "Family vacation"
-            }
-        },
-        "from_attributes": True
-    }
-
-
-class OffWeekRequestResponse(BaseModel):
-    id: int
-    employee_email: str
-    start_date: date
-    end_date: date
-    reason: str
-    status: str
-    created_at: Optional[datetime] = None
-
-    model_config = {"from_attributes": True}
-
-
-class OffWeekRequestListResponse(BaseModel):
-    count: int
-    requests: List[OffWeekRequestResponse]
-
-
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str

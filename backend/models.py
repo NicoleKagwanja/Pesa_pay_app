@@ -17,17 +17,6 @@ class Employee(Base):
     password = Column(String)
     is_admin = Column(Boolean, default=False)
 
-class OffWeekRequest(Base):
-    __tablename__ = "off_week_requests"
-
-    id = Column(Integer, primary_key=True, index=True)
-    employee_email = Column(String, nullable=False)
-    start_date = Column(Date, nullable=False)
-    end_date = Column(Date, nullable=False)
-    reason = Column(String, nullable=False)
-    status = Column(Enum("pending", "approved", "rejected"), default="pending")
-    created_at = Column(DateTime, default=datetime.utcnow)
-
 class Attendance(Base):
     __tablename__ = "attendance"
 

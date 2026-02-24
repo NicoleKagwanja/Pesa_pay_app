@@ -1,15 +1,18 @@
+// ignore_for_file: library_prefixes, no_leading_underscores_for_library_prefixes
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as _httpClient;
 
 class APIService {
   static String get baseURL {
     if (kIsWeb) {
       return 'http://localhost:8000/api/v1';
     } else {
-      return 'http://10.0.2.2:8000/api/v1'; // For Android emulator
+      return 'http://10.0.2.2:8000/api/v1';
     }
   }
 
@@ -62,8 +65,6 @@ class APIService {
     }
   }
 
-  // ==================== AUTH & REGISTRATION ====================
-
   Future<void> registerUser(Map<String, dynamic> userData) async {
     final uri = Uri.parse('$baseURL/signup');
     await _makeRequest<void>(
@@ -84,8 +85,6 @@ class APIService {
     );
   }
 
-  // ==================== EMPLOYEE & PROFILE ====================
-
   Future<Map<String, dynamic>> getEmployeeByEmail(String email) async {
     final uri = Uri.parse('$baseURL/employee/$email');
     return _makeRequest<Map<String, dynamic>>(
@@ -97,8 +96,6 @@ class APIService {
   @Deprecated('Use getEmployeeByEmail instead')
   Future<Map<String, dynamic>> getProfile(String email) =>
       getEmployeeByEmail(email);
-
-  // ==================== ATTENDANCE ====================
 
   Future<Map<String, dynamic>> logAttendance({
     required String email,
@@ -147,8 +144,6 @@ class APIService {
     );
   }
 
-  // ==================== SALARY ====================
-
   Future<Map<String, dynamic>> calculateSalary(String email) async {
     final uri = Uri.parse('$baseURL/salary/calculate/$email');
     return _makeRequest<Map<String, dynamic>>(
@@ -156,50 +151,6 @@ class APIService {
       (body) => body,
     );
   }
-
-  // ==================== OFF-WEEK REQUESTS ====================
-
-  Future<void> requestOffWeek({
-    required String email,
-    required String startDate,
-    required String endDate,
-    required String reason,
-  }) async {
-    final uri = Uri.parse('$baseURL/off-week/request');
-    await _makeRequest<void>(
-      http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({
-          'employee_email': email,
-          'start_date': startDate,
-          'end_date': endDate,
-          'reason': reason,
-        }),
-      ),
-      (_) {},
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getPendingOffWeeks() async {
-    final uri = Uri.parse('$baseURL/admin/off-week/pending');
-    return _makeRequest<List<Map<String, dynamic>>>(
-      http.get(uri, headers: headers),
-      (body) => (body as List).map((e) => e as Map<String, dynamic>).toList(),
-    );
-  }
-
-  Future<void> approveOffWeek(int id) async {
-    final uri = Uri.parse('$baseURL/admin/off-week/approve/$id');
-    await _makeRequest<void>(http.post(uri, headers: headers), (_) {});
-  }
-
-  Future<void> rejectOffWeek(int id) async {
-    final uri = Uri.parse('$baseURL/admin/off-week/reject/$id');
-    await _makeRequest<void>(http.post(uri, headers: headers), (_) {});
-  }
-
-  // ==================== ADMIN REPORTS ====================
 
   Future<List<Map<String, dynamic>>> getAllEmployees() async {
     final uri = Uri.parse('$baseURL/admin/employees');
@@ -217,9 +168,6 @@ class APIService {
     );
   }
 
-  // ==================== CALENDAR EVENTS ====================
-
-  /// Get all calendar events (holidays, funerals, trips, etc.)
   Future<List<Map<String, dynamic>>> getCalendarEvents() async {
     final uri = Uri.parse('$baseURL/admin/calendar/events');
     return _makeRequest<List<Map<String, dynamic>>>(
@@ -228,7 +176,6 @@ class APIService {
     );
   }
 
-  /// Add a new calendar event (admin-only)
   Future<Map<String, dynamic>> addCalendarEvent({
     required String title,
     required String date,
@@ -251,7 +198,15 @@ class APIService {
     );
   }
 
-  // ==================== PAYMENTS ====================
+  Future<List<dynamic>> getAttendanceRecords(String email) async {
+    final response = await _httpClient.get(
+      Uri.parse('/attendance/records/$email'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    throw Exception('Failed to load attendance records');
+  }
 
   Future<Map<String, dynamic>> disburseSalaries() async {
     final uri = Uri.parse('$baseURL/payments/disburse');
@@ -260,8 +215,6 @@ class APIService {
       (body) => body,
     );
   }
-
-  // ==================== PUBLIC HOLIDAYS ====================
 
   Future<List<dynamic>> getPublicHolidays() async {
     final response = await http.get(Uri.parse('$baseURL/holidays'));
