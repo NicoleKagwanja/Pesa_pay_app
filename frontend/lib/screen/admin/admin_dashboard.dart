@@ -1,3 +1,4 @@
+// lib/screens/admin/admin_dashboard.dart
 // ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,12 +16,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
   List<Map<String, dynamic>> _employees = [];
   List<Map<String, dynamic>> _pendingRequests = [];
   List<Map<String, dynamic>> _attendanceReport = [];
+  List<Map<String, dynamic>> _calendarEvents = [];
   bool _loading = true;
+  final ScrollController _scrollController = ScrollController();
+
+  final APIService apiService = APIService();
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -29,62 +40,72 @@ class _AdminDashboardState extends State<AdminDashboard> {
     });
 
     try {
-      final employees = await APIService().getAllEmployees();
-      final pending = await APIService().getPendingOffWeeks();
+      final employees = await apiService.getAllEmployees();
+      final pending = await apiService.getPendingOffWeeks();
+      final attendance = await apiService.getAttendanceReport();
+      final events = await apiService.getCalendarEvents();
 
-      setState(() {
-        _employees = List<Map<String, dynamic>>.from(employees);
-        _pendingRequests = List<Map<String, dynamic>>.from(pending);
-
-        _attendanceReport = _employees.map((emp) {
-          return {...emp, 'total_hours': 160.0 + (emp['id'] % 10) * 5};
-        }).toList();
-
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _loading = false;
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to load data: $e")));
+      if (mounted) {
+        setState(() {
+          _employees = List<Map<String, dynamic>>.from(employees);
+          _pendingRequests = List<Map<String, dynamic>>.from(pending);
+          _attendanceReport = List<Map<String, dynamic>>.from(attendance);
+          _calendarEvents = List<Map<String, dynamic>>.from(events);
+          _loading = false;
+        });
+      }
+    } on Exception catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("❌ Failed to load data: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   Future<void> _approveRequest(int id) async {
     try {
-      await APIService().approveOffWeek(id);
-      setState(() {
-        _pendingRequests.removeWhere((r) => r['id'] == id);
-      });
+      await apiService.approveOffWeek(id);
+      if (mounted) {
+        setState(() {
+          _pendingRequests.removeWhere((r) => r['id'] == id);
+        });
+      }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Request approved")));
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed: $e")));
+      ).showSnackBar(const SnackBar(content: Text("✅ Request approved")));
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Failed: $e"), backgroundColor: Colors.red),
+      );
     }
   }
 
   Future<void> _rejectRequest(int id) async {
     try {
-      await APIService().rejectOffWeek(id);
-      setState(() {
-        _pendingRequests.removeWhere((r) => r['id'] == id);
-      });
+      await apiService.rejectOffWeek(id);
+      if (mounted) {
+        setState(() {
+          _pendingRequests.removeWhere((r) => r['id'] == id);
+        });
+      }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Request rejected")));
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed: $e")));
+      ).showSnackBar(const SnackBar(content: Text("✅ Request rejected")));
+    } on Exception catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Failed: $e"), backgroundColor: Colors.red),
+      );
     }
   }
 
-  void _disburseSalaries() {
+  Future<void> _disburseSalaries() async {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -103,14 +124,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             onPressed: () async {
               Navigator.pop(ctx);
               try {
-                final result = await APIService().disburseSalaries();
+                final result = await apiService.disburseSalaries();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text("${result['message']}"),
                     backgroundColor: Colors.green,
                   ),
                 );
-              } catch (e) {
+              } on Exception catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text("Disbursement failed: $e"),
@@ -126,11 +147,80 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  void _logout() async {
+  Future<void> _addCalendarEvent() async {
+    final titleCtrl = TextEditingController();
+    final dateCtrl = TextEditingController(text: '2025-08-15');
+    final typeCtrl = TextEditingController(text: 'event');
+    final descCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Add Calendar Event"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: "Title"),
+              ),
+              TextField(
+                controller: dateCtrl,
+                decoration: const InputDecoration(
+                  labelText: "Date (YYYY-MM-DD)",
+                ),
+              ),
+              TextField(
+                controller: typeCtrl,
+                decoration: const InputDecoration(labelText: "Type"),
+              ),
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: "Description"),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await apiService.addCalendarEvent(
+                  title: titleCtrl.text,
+                  date: dateCtrl.text,
+                  type: typeCtrl.text,
+                  description: descCtrl.text,
+                );
+                _loadData(); // Reload events
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text("✅ Event added!")));
+              } on Exception catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("❌ Failed: $e"),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text("Add"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_email');
     await prefs.remove('is_admin');
-
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
@@ -202,18 +292,35 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
             ListTile(
               leading: const Icon(Icons.people),
-              title: const Text("Employees"),
-              onTap: () {},
+              title: const Text("All Employees"),
+              onTap: () {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(seconds: 1),
+                  curve: Curves.easeInOut,
+                );
+                Navigator.pop(context);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.event_available),
               title: const Text("Pending Requests"),
-              onTap: () {},
+              onTap: () {
+                _scrollController.animateTo(
+                  800.0,
+                  duration: const Duration(seconds: 1),
+                  curve: Curves.easeInOut,
+                );
+                Navigator.pop(context);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.attach_money),
               title: const Text("Disburse Salaries"),
-              onTap: _disburseSalaries,
+              onTap: () {
+                _disburseSalaries();
+                Navigator.pop(context);
+              },
             ),
             const Divider(),
             ListTile(
@@ -237,6 +344,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -279,23 +387,35 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      ..._employees.map(
-                        (emp) => Card(
-                          child: ListTile(
-                            leading: const Icon(
-                              Icons.person,
-                              color: Colors.blue,
+                      if (_employees.isEmpty)
+                        const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text(
+                              "No employees registered yet.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey),
                             ),
-                            title: Text(emp['name']),
-                            subtitle: Text(
-                              "${emp['department']} • ${emp['email']}",
-                            ),
-                            trailing: Text(
-                              "KES ${emp['salary']?.toStringAsFixed(2)}",
+                          ),
+                        )
+                      else
+                        ..._employees.map(
+                          (emp) => Card(
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.person,
+                                color: Colors.blue,
+                              ),
+                              title: Text(emp['name']),
+                              subtitle: Text(
+                                "${emp['department']} • ${emp['email']}",
+                              ),
+                              trailing: Text(
+                                "KES ${emp['salary']?.toStringAsFixed(2)}",
+                              ),
                             ),
                           ),
                         ),
-                      ),
                       const SizedBox(height: 24),
 
                       const Text(
@@ -306,8 +426,72 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
                       AttendanceChartWidget(report: _attendanceReport),
+                      const SizedBox(height: 24),
+
+                      // Calendar Events with Add Button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Calendar Events",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _addCalendarEvent,
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text("Add Event"),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_calendarEvents.isEmpty)
+                        const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text(
+                              "No calendar events yet.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        )
+                      else
+                        ..._calendarEvents.map(
+                          (e) => Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    e['title'],
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    "${e['type'].toUpperCase()} • ${e['date']}",
+                                  ),
+                                  if (e['description'] != null)
+                                    Text(e['description']),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 24),
 
                       const Text(
@@ -364,7 +548,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                       Expanded(
                                         child: ElevatedButton(
                                           onPressed: () =>
-                                              _approveRequest(req['id']),
+                                              _approveRequest(req['id'] as int),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.green,
                                           ),
@@ -375,7 +559,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                       Expanded(
                                         child: ElevatedButton(
                                           onPressed: () =>
-                                              _rejectRequest(req['id']),
+                                              _rejectRequest(req['id'] as int),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.red,
                                           ),

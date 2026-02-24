@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from models import OffWeekRequest
@@ -15,7 +15,7 @@ router = APIRouter(tags=["off-week"])
     
 )
 def request_off_week(
-    request: OffWeekRequestCreate,
+    request: OffWeekRequestCreate = Body(...),
     db: Session = Depends(get_db)
 ):
     """

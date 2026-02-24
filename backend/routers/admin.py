@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models import OffWeekRequest, Employee
+from models import Attendance, OffWeekRequest, Employee
 from datetime import datetime
 
 router = APIRouter(tags=["admin"])
@@ -93,3 +93,27 @@ def reject_off_week(request_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Off-week rejected", "request_id": request_id}
+
+
+@router.get("/admin/attendance/report")
+def get_attendance_report(db: Session = Depends(get_db)):
+    """
+    Get full attendance report with total hours per employee
+    """
+    employees = db.query(Employee).all()
+    report = []
+
+    for emp in employees:
+        records = db.query(Attendance).filter(Attendance.employee_email == emp.email).all()
+        total_hours = sum(r.total_hours or 0 for r in records)
+
+        report.append({
+            "id": emp.id,
+            "name": emp.name,
+            "email": emp.email,
+            "department": emp.department,
+            "total_hours": round(total_hours, 2),
+            "attendance_count": len(records)
+        })
+
+    return report

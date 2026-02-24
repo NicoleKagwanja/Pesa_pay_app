@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal, Base, engine
-from models import OffWeekRequest, Attendance
+from models import Employee, OffWeekRequest, Attendance, PublicHoliday
 from schemas import EmployeeCreate, EmployeeResponse
 from crud import create_employee, get_employee_by_email, get_all_employees
 from datetime import datetime
@@ -140,7 +140,7 @@ def login(employee_login: dict, db: Session = Depends(get_db)):
     if not db_user:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    if not ph.verify(password, db_user.password):  # type: ignore # In real app, use hash check
+    if not ph.verify(password, db_user.password):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
     return {
@@ -229,3 +229,76 @@ def get_profile(email: str, db: Session = Depends(get_db)):
         "bank_name": db_user.bank_name,
         "account_number": db_user.account_number
     }
+
+@router.get("/holidays")
+def get_public_holidays(db: Session = Depends(get_db)):
+    holidays = db.query(PublicHoliday).all()
+    return [
+        {"name": h.name, "date": str(h.date)}
+        for h in holidays
+    ]
+
+@router.get("/admin/employees")
+def get_all_employees(db: Session = Depends(get_db)):
+    employees = db.query(Employee).all()
+    return [
+        {
+            "id": emp.id,
+            "name": emp.name,
+            "email": emp.email,
+            "department": emp.department,
+            "phone": emp.phone,
+            "salary": emp.salary,
+            "bank_name": emp.bank_name,
+            "account_number": emp.account_number
+        }
+        for emp in employees
+    ]
+
+@router.get("/admin/off-week/pending")
+def get_pending_off_weeks(db: Session = Depends(get_db)):
+    requests = db.query(OffWeekRequest).filter(OffWeekRequest.status == "pending").all()
+    return [
+        {
+            "id": r.id,
+            "employee_email": r.employee_email,
+            "start_date": str(r.start_date),
+            "end_date": str(r.end_date),
+            "status": r.status
+        }
+        for r in requests
+    ]
+
+@router.post("/admin/off-week/approve/{id}")
+def approve_off_week(id: int, db: Session = Depends(get_db)):
+    request = db.query(OffWeekRequest).filter(OffWeekRequest.id == id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    request.status = "approved"
+    db.commit()
+    return {"message": "Approved successfully"}
+
+@router.post("/admin/off-week/reject/{id}")
+def reject_off_week(id: int, db: Session = Depends(get_db)):
+    request = db.query(OffWeekRequest).filter(OffWeekRequest.id == id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    request.status = "rejected"
+    db.commit()
+    return {"message": "Rejected successfully"}
+
+@router.get("/admin/attendance/report")
+def get_attendance_report(db: Session = Depends(get_db)):
+    report = []
+    employees = db.query(Employee).all()
+    for emp in employees:
+        attendance = db.query(Attendance).filter(Attendance.employee_email == emp.email).all()
+        total_hours = sum(a.total_hours for a in attendance if a.total_hours)
+        days_worked = len([a for a in attendance if a.status == "present"])
+        report.append({
+            "name": emp.name,
+            "department": emp.department,
+            "total_hours": round(total_hours, 2),
+            "attendance_count": days_worked
+        })
+    return report

@@ -9,7 +9,7 @@ class APIService {
     if (kIsWeb) {
       return 'http://localhost:8000/api/v1';
     } else {
-      return 'http://10.0.2.2:8000/api/v1';
+      return 'http://10.0.2.2:8000/api/v1'; // For Android emulator
     }
   }
 
@@ -62,6 +62,8 @@ class APIService {
     }
   }
 
+  // ==================== AUTH & REGISTRATION ====================
+
   Future<void> registerUser(Map<String, dynamic> userData) async {
     final uri = Uri.parse('$baseURL/signup');
     await _makeRequest<void>(
@@ -82,27 +84,7 @@ class APIService {
     );
   }
 
-  Future<void> requestOffWeek({
-    required String email,
-    required String startDate,
-    required String endDate,
-    required String reason,
-  }) async {
-    final uri = Uri.parse('$baseURL/off-week/request');
-    await _makeRequest<void>(
-      http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({
-          'employee_email': email,
-          'start_date': startDate,
-          'end_date': endDate,
-          'reason': reason,
-        }),
-      ),
-      (_) {},
-    );
-  }
+  // ==================== EMPLOYEE & PROFILE ====================
 
   Future<Map<String, dynamic>> getEmployeeByEmail(String email) async {
     final uri = Uri.parse('$baseURL/employee/$email');
@@ -112,29 +94,11 @@ class APIService {
     );
   }
 
-  Future<Map<String, dynamic>> calculateSalary(String email) async {
-    final uri = Uri.parse('$baseURL/salary/calculate/$email');
-    return _makeRequest<Map<String, dynamic>>(
-      http.get(uri, headers: headers),
-      (body) => body,
-    );
-  }
+  @Deprecated('Use getEmployeeByEmail instead')
+  Future<Map<String, dynamic>> getProfile(String email) =>
+      getEmployeeByEmail(email);
 
-  Future<Map<String, dynamic>> getAttendance(String email) async {
-    final uri = Uri.parse('$baseURL/attendance/$email');
-    return _makeRequest<Map<String, dynamic>>(
-      http.get(uri, headers: headers),
-      (body) => body,
-    );
-  }
-
-  Future<Map<String, dynamic>> getActivityCalendar(String email) async {
-    final uri = Uri.parse('$baseURL/activity/calendar/$email');
-    return _makeRequest<Map<String, dynamic>>(
-      http.get(uri, headers: headers),
-      (body) => body,
-    );
-  }
+  // ==================== ATTENDANCE ====================
 
   Future<Map<String, dynamic>> logAttendance({
     required String email,
@@ -152,6 +116,14 @@ class APIService {
           if (timeOut != null) "time_out": timeOut,
         }),
       ),
+      (body) => body,
+    );
+  }
+
+  Future<Map<String, dynamic>> getAttendance(String email) async {
+    final uri = Uri.parse('$baseURL/attendance/$email');
+    return _makeRequest<Map<String, dynamic>>(
+      http.get(uri, headers: headers),
       (body) => body,
     );
   }
@@ -175,19 +147,37 @@ class APIService {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getAttendanceReport() async {
-    final uri = Uri.parse('$baseURL/admin/attendance/report');
-    return _makeRequest<List<Map<String, dynamic>>>(
+  // ==================== SALARY ====================
+
+  Future<Map<String, dynamic>> calculateSalary(String email) async {
+    final uri = Uri.parse('$baseURL/salary/calculate/$email');
+    return _makeRequest<Map<String, dynamic>>(
       http.get(uri, headers: headers),
-      (body) => (body as List).map((e) => e as Map<String, dynamic>).toList(),
+      (body) => body,
     );
   }
 
-  Future<List<Map<String, dynamic>>> getAllEmployees() async {
-    final uri = Uri.parse('$baseURL/admin/employees');
-    return _makeRequest<List<Map<String, dynamic>>>(
-      http.get(uri, headers: headers),
-      (body) => (body as List).map((e) => e as Map<String, dynamic>).toList(),
+  // ==================== OFF-WEEK REQUESTS ====================
+
+  Future<void> requestOffWeek({
+    required String email,
+    required String startDate,
+    required String endDate,
+    required String reason,
+  }) async {
+    final uri = Uri.parse('$baseURL/off-week/request');
+    await _makeRequest<void>(
+      http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode({
+          'employee_email': email,
+          'start_date': startDate,
+          'end_date': endDate,
+          'reason': reason,
+        }),
+      ),
+      (_) {},
     );
   }
 
@@ -209,6 +199,60 @@ class APIService {
     await _makeRequest<void>(http.post(uri, headers: headers), (_) {});
   }
 
+  // ==================== ADMIN REPORTS ====================
+
+  Future<List<Map<String, dynamic>>> getAllEmployees() async {
+    final uri = Uri.parse('$baseURL/admin/employees');
+    return _makeRequest<List<Map<String, dynamic>>>(
+      http.get(uri, headers: headers),
+      (body) => (body as List).map((e) => e as Map<String, dynamic>).toList(),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAttendanceReport() async {
+    final uri = Uri.parse('$baseURL/admin/attendance/report');
+    return _makeRequest<List<Map<String, dynamic>>>(
+      http.get(uri, headers: headers),
+      (body) => (body as List).map((e) => e as Map<String, dynamic>).toList(),
+    );
+  }
+
+  // ==================== CALENDAR EVENTS ====================
+
+  /// Get all calendar events (holidays, funerals, trips, etc.)
+  Future<List<Map<String, dynamic>>> getCalendarEvents() async {
+    final uri = Uri.parse('$baseURL/admin/calendar/events');
+    return _makeRequest<List<Map<String, dynamic>>>(
+      http.get(uri, headers: headers),
+      (body) => (body as List).map((e) => e as Map<String, dynamic>).toList(),
+    );
+  }
+
+  /// Add a new calendar event (admin-only)
+  Future<Map<String, dynamic>> addCalendarEvent({
+    required String title,
+    required String date,
+    required String type,
+    String? description,
+  }) async {
+    final uri = Uri.parse('$baseURL/admin/calendar/events');
+    return _makeRequest<Map<String, dynamic>>(
+      http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode({
+          'title': title,
+          'date': date,
+          'type': type,
+          if (description != null) 'description': description,
+        }),
+      ),
+      (body) => body,
+    );
+  }
+
+  // ==================== PAYMENTS ====================
+
   Future<Map<String, dynamic>> disburseSalaries() async {
     final uri = Uri.parse('$baseURL/payments/disburse');
     return _makeRequest<Map<String, dynamic>>(
@@ -217,7 +261,14 @@ class APIService {
     );
   }
 
-  @Deprecated('Use getEmployeeByEmail instead')
-  Future<Map<String, dynamic>> getProfile(String email) =>
-      getEmployeeByEmail(email);
+  // ==================== PUBLIC HOLIDAYS ====================
+
+  Future<List<dynamic>> getPublicHolidays() async {
+    final response = await http.get(Uri.parse('$baseURL/holidays'));
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load holidays');
+    }
+  }
 }

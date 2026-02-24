@@ -16,6 +16,7 @@ class EmployeeBase(BaseModel):
 
 class EmployeeCreate(EmployeeBase):
     password: str
+    salary: float = 80000
 
 
 class EmployeeResponse(EmployeeBase):

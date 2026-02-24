@@ -1,8 +1,10 @@
+import calendar
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from routers import calendar_routers
 from routers import auth, off_week, admin, salary, attendance
 
 @asynccontextmanager
@@ -59,3 +61,4 @@ app.include_router(off_week.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(salary.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
+app.include_router(calendar_routers.router, prefix="/api/v1")

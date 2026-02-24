@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Float, Integer, String
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Float, Integer, String, Text
 from database import Base
 
 class Employee(Base):
@@ -38,3 +38,19 @@ class Attendance(Base):
     time_out = Column(String)
     total_hours = Column(Float)
     status = Column(String, default="present")
+
+class PublicHoliday(Base):
+    __tablename__ = "public_holidays"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    date = Column(Date, nullable=False, index=True)
+
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    date = Column(Date, nullable=False)
+    type = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
