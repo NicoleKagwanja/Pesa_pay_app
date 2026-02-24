@@ -130,7 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       initialDate: _start ?? DateTime.now(),
       firstDate: DateTime(2024),
-      lastDate: DateTime(2026),
+      lastDate: DateTime(2040),
     );
 
     if (selected == null) return;
@@ -189,7 +189,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString('user_email') ?? "nicole@gmail.com";
+    final email = prefs.getString('user_email') ?? "example@email.com";
 
     try {
       await apiService.requestOffWeek(
