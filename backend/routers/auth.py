@@ -4,7 +4,7 @@ from database import SessionLocal, Base, engine
 from models import Employee, OffWeekRequest, Attendance, PublicHoliday
 from schemas import EmployeeCreate, EmployeeResponse
 from crud import create_employee, get_employee_by_email, get_all_employees
-from datetime import datetime
+from datetime import date
 from passlib.context import CryptContext
 
 ph = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -182,8 +182,8 @@ def request_off_week(
     db: Session = Depends(get_db)
 ):
     try:
-        start = datetime.date.fromisoformat(start_date)
-        end = datetime.date.fromisoformat(end_date)
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
@@ -191,6 +191,7 @@ def request_off_week(
         employee_email=employee_email,
         start_date=start,
         end_date=end,
+        reason="No reason provided",  # Provide a default reason
         status="pending"
     )
     db.add(new_request)
