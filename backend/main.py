@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from routers import calendar_routers
-from routers import auth, off_week, admin, salary, attendance
+from routers import auth, admin, salary, attendance
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,7 +57,6 @@ async def favicon():
     return FileResponse("static/favicon.ico")
 
 app.include_router(auth.router, prefix="/api/v1")
-app.include_router(off_week.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(salary.router, prefix="/api/v1")
 app.include_router(attendance.router, prefix="/api/v1")
