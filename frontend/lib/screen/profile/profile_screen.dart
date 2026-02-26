@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pesa_pay/services/api_services.dart';
 import 'package:pesa_pay/services/network_service.dart';
@@ -83,7 +84,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final emp = await apiService.getEmployeeByEmail(_userEmail!);
-      final salary = await apiService.calculateSalary(_userEmail!);
+      final salary = await apiService.calculateSalary(
+        email: _userEmail!,
+        month: DateFormat('yyyy-MM').format(DateTime.now()),
+        hourlyRate: 500.0,
+      );
       final attendance = await apiService.getAttendance(_userEmail!);
 
       setState(() {

@@ -1,11 +1,11 @@
 // ignore_for_file: library_prefixes, no_leading_underscores_for_library_prefixes
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as _httpClient;
+import 'package:intl/intl.dart';
 
 class APIService {
   static String get baseURL {
@@ -144,14 +144,6 @@ class APIService {
     );
   }
 
-  Future<Map<String, dynamic>> calculateSalary(String email) async {
-    final uri = Uri.parse('$baseURL/salary/calculate/$email');
-    return _makeRequest<Map<String, dynamic>>(
-      http.get(uri, headers: headers),
-      (body) => body,
-    );
-  }
-
   Future<List<Map<String, dynamic>>> getAllEmployees() async {
     final uri = Uri.parse('$baseURL/admin/employees');
     return _makeRequest<List<Map<String, dynamic>>>(
@@ -223,5 +215,153 @@ class APIService {
     } else {
       throw Exception('Failed to load holidays');
     }
+  }
+
+  Future<Map<String, dynamic>> getAttendanceDayDetails(
+    String email,
+    String dateStr,
+  ) async {
+    try {
+      final response = await _httpClient.get(
+        Uri.parse('$baseURL/attendance/day/$email/$dateStr'),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Failed to load day details: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> calculateSalary({
+    required String email,
+    required String month,
+    required double hourlyRate,
+  }) async {
+    final response = await _httpClient.post(
+      Uri.parse('$baseURL/salary/calculate'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'employee_email': email,
+        'month': month,
+        'hourly_rate': hourlyRate,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to calculate salary: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> getSalaryHistory(String email) async {
+    final response = await _httpClient.get(
+      Uri.parse('$baseURL/salary/history/$email'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load salary history: ${response.statusCode}');
+  }
+
+  Future<List<dynamic>> getAdminEmployees() async {
+    final response = await _httpClient.get(
+      Uri.parse('$baseURL/admin/employees'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception('Failed to load employees: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> getAdminAttendanceOverview() async {
+    final response = await _httpClient.get(
+      Uri.parse('$baseURL/admin/attendance/overview'),
+    );
+
+    if (response.statusCode == 00) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load overview: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> getAdminEmployeeAttendance(
+    String email, {
+    String? date,
+  }) async {
+    final uri = date != null
+        ? Uri.parse('$baseURL/admin/employees/$email/attendance?date=$date')
+        : Uri.parse('$baseURL/admin/employees/$email/attendance');
+
+    final response = await _httpClient.get(uri);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to load attendance: ${response.statusCode}');
+  }
+
+  Future<List<dynamic>> getSharedEvents({
+    String? month,
+    String? department,
+  }) async {
+    final params = <String, String>{};
+    if (month != null) params['month'] = month;
+    if (department != null) params['department'] = department;
+
+    final uri = Uri.parse(
+      '$baseURL/admin/events',
+    ).replace(queryParameters: params);
+    final response = await _httpClient.get(uri);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    }
+    throw Exception('Failed to load events: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> createSharedEvent({
+    required String adminEmail,
+    required String title,
+    String? description,
+    required DateTime eventDate,
+    required String eventType,
+    String? targetDepartment,
+  }) async {
+    final response = await _httpClient.post(
+      Uri.parse('$baseURL/admin/events?admin_email=$adminEmail'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'title': title,
+        'description': description,
+        'event_date': DateFormat('yyyy-MM-dd').format(eventDate),
+        'event_type': eventType,
+        'target_department': targetDepartment,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to create event: ${response.statusCode}');
+  }
+
+  Future<Map<String, dynamic>> deleteSharedEvent(
+    int eventId,
+    String adminEmail,
+  ) async {
+    final response = await _httpClient.delete(
+      Uri.parse('$baseURL/admin/events/$eventId?admin_email=$adminEmail'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    throw Exception('Failed to delete event: ${response.statusCode}');
   }
 }

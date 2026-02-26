@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api, unused_field
+// ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api, unused_field, deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pesa_pay/services/api_services.dart';
@@ -15,7 +15,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   late TextEditingController _reasonController;
   DateTime? _start, _end;
-  String? _pendingOffWeek;
   String _userName = "Employee";
   String _department = "Loading...";
   double _totalHours = 0.0;
@@ -29,6 +28,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   DateTime _calendarMonth = DateTime.now();
   List<Map<String, dynamic>> _attendanceRecords = [];
+
+  List<Map<String, dynamic>> _sharedEvents = [];
 
   final NetworkService _networkService = NetworkService();
   final APIService apiService = APIService();
@@ -108,8 +109,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _attendanceRecords = List<Map<String, dynamic>>.from(records);
         });
       }
+      await _loadSharedEvents();
     } catch (e) {
       debugPrint("Failed to load attendance records: $e");
+    }
+  }
+
+  Future<void> _loadSharedEvents() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('user_email') ?? '';
+
+      final employee = await apiService.getEmployeeByEmail(email);
+      final department = employee['department'] as String?;
+
+      final events = await apiService.getSharedEvents(
+        month: DateFormat('yyyy-MM').format(_calendarMonth),
+        department: department,
+      );
+
+      if (mounted) {
+        setState(() {
+          _sharedEvents = List<Map<String, dynamic>>.from(events);
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load shared events: $e");
     }
   }
 
@@ -141,6 +166,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  bool _hasEventOnDate(DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return _sharedEvents.any((event) => event['event_date'] == dateStr);
+  }
+
   void _changeMonth(int offset) {
     setState(() {
       _calendarMonth = DateTime(
@@ -149,6 +179,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         1,
       );
     });
+    _loadSharedEvents();
+  }
+
+  IconData _getEventIcon(String type) {
+    switch (type) {
+      case 'holiday':
+        return Icons.beach_access;
+      case 'meeting':
+        return Icons.meeting_room;
+      case 'deadline':
+        return Icons.flag;
+      case 'announcement':
+        return Icons.announcement;
+      default:
+        return Icons.event;
+    }
+  }
+
+  Color _getEventColor(String type) {
+    switch (type) {
+      case 'holiday':
+        return Colors.red;
+      case 'meeting':
+        return Colors.blue;
+      case 'deadline':
+        return Colors.orange;
+      case 'announcement':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
   }
 
   Widget _buildAttendanceCalendar() {
@@ -196,12 +257,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.chevron_right),
-                      onPressed: () =>
-                          _calendarMonth.isBefore(
-                            DateTime(now.year, now.month + 1, 1),
-                          )
-                          ? null
-                          : () => _changeMonth(1),
+                      onPressed: () => _changeMonth(1),
                       constraints: const BoxConstraints(),
                       padding: EdgeInsets.zero,
                     ),
@@ -253,6 +309,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   dayNumber,
                 );
                 final hasAttendance = _hasAttendanceOnDate(date);
+                final hasEvent = _hasEventOnDate(date);
                 final isToday =
                     DateFormat('yyyy-MM-dd').format(date) ==
                     DateFormat('yyyy-MM-dd').format(now);
@@ -260,53 +317,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   DateTime(now.year, now.month, now.day),
                 );
 
-                return Container(
-                  decoration: BoxDecoration(
-                    color: isToday
-                        ? Colors.blue[100]
-                        : hasAttendance
-                        ? Colors.green[100]
-                        : isFuture
-                        ? Colors.grey[100]
-                        : Colors.grey[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
+                return GestureDetector(
+                  onTap: () => _showDayDetails(date),
+                  child: Container(
+                    decoration: BoxDecoration(
                       color: isToday
-                          ? Colors.blue
+                          ? Colors.blue[100]
                           : hasAttendance
-                          ? Colors.green
-                          : Colors.transparent,
-                      width: isToday || hasAttendance ? 2 : 1,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$dayNumber',
-                      style: TextStyle(
-                        color: isFuture
-                            ? Colors.grey
-                            : (hasAttendance
-                                  ? Colors.green[800]
-                                  : Colors.black87),
-                        fontWeight: isToday
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                          ? Colors.green[100]
+                          : isFuture
+                          ? Colors.grey[100]
+                          : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isToday
+                            ? Colors.blue
+                            : hasAttendance
+                            ? Colors.green
+                            : Colors.transparent,
+                        width: isToday || hasAttendance ? 2 : 1,
                       ),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Center(
+                          child: Text(
+                            '$dayNumber',
+                            style: TextStyle(
+                              color: isFuture
+                                  ? Colors.grey
+                                  : (hasAttendance
+                                        ? Colors.green[800]
+                                        : Colors.black87),
+                              fontWeight: isToday
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                        if (hasEvent)
+                          Positioned(
+                            bottom: 4,
+                            child: Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: Colors.purple,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 );
               },
             ),
 
-            // Legend
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildLegendItem(Colors.green, 'Present'),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 _buildLegendItem(Colors.blue, 'Today'),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
+                _buildLegendItem(Colors.purple, 'Event'),
+                const SizedBox(width: 12),
                 _buildLegendItem(Colors.grey, 'No Record'),
               ],
             ),
@@ -323,7 +401,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           width: 12,
           height: 12,
           decoration: BoxDecoration(
-            // ignore: deprecated_member_use
             color: color.withOpacity(0.3),
             borderRadius: BorderRadius.circular(3),
             border: Border.all(color: color, width: 1.5),
@@ -466,6 +543,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               leading: const Icon(Icons.calendar_today),
               title: const Text("Activity Calendar"),
               onTap: () => Navigator.pushNamed(context, '/activity'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet),
+              title: const Text("Salary"),
+              onTap: () => Navigator.pushNamed(context, '/salary'),
             ),
           ],
         ),
@@ -647,7 +729,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Salary Status Card
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
@@ -668,16 +749,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const Divider(),
                     const SizedBox(height: 8),
                     const Text(
-                      "Your salary will be adjusted based on attendance and approved off-weeks.",
+                      "Tap below to calculate your salary based on hours worked.",
                       style: TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
-                      onPressed: () => Navigator.pushNamed(context, '/profile'),
-                      icon: const Icon(Icons.visibility, size: 16),
-                      label: const Text("View Profile & Salary"),
+                      onPressed: () => Navigator.pushNamed(context, '/salary'),
+                      icon: const Icon(Icons.account_balance_wallet, size: 16),
+                      label: const Text("View Salary Details"),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(211, 0, 0, 0),
+                        backgroundColor: const Color(0xFF0066CC),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
@@ -687,7 +768,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 24),
 
-            //Activity Calendar at Bottom
             const Text(
               "Activity Calendar",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -697,6 +777,252 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showDayDetails(DateTime date) async {
+    if (!_isOnline) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No internet connection")));
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('user_email') ?? '';
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+
+    try {
+      final details = await apiService.getAttendanceDayDetails(email, dateStr);
+
+      if (!mounted) return;
+
+      final eventsOnDate = _sharedEvents
+          .where((e) => e['event_date'] == dateStr)
+          .toList();
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            top: 20,
+            left: 20,
+            right: 20,
+          ),
+          child: _buildDayDetailsModal(date, details, eventsOnDate),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to load details: $e")));
+    }
+  }
+
+  Widget _buildDayDetailsModal(
+    DateTime date,
+    Map<String, dynamic> details,
+    List<Map<String, dynamic>> eventsOnDate,
+  ) {
+    final hasAttendance = details['has_attendance'] == true;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+
+        Text(
+          DateFormat('EEEE, MMMM d, yyyy').format(date),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+
+        if (hasAttendance) ...[
+          _buildDetailRow(
+            Icons.login,
+            "Time In",
+            details['time_in'] ?? 'Not recorded',
+          ),
+          const SizedBox(height: 12),
+          _buildDetailRow(
+            Icons.logout,
+            "Time Out",
+            details['time_out'] ?? 'Not recorded',
+          ),
+          const SizedBox(height: 12),
+          if (details['total_hours'] != null)
+            _buildDetailRow(
+              Icons.timer,
+              "Hours Worked",
+              "${details['total_hours']} hrs",
+              isHighlighted: true,
+            ),
+          const SizedBox(height: 12),
+          _buildDetailRow(
+            Icons.check_circle,
+            "Status",
+            details['status']?.toString().toUpperCase() ?? 'PRESENT',
+            color: Colors.green,
+          ),
+        ] else ...[
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Column(
+                children: [
+                  Icon(Icons.event_busy, size: 48, color: Colors.grey[400]),
+                  const SizedBox(height: 12),
+                  Text(
+                    "No attendance recorded",
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "This day has no clock in/out data",
+                    style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        if (eventsOnDate.isNotEmpty) ...[
+          const Divider(height: 32),
+          const Text(
+            "Calendar Events",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          ...eventsOnDate.map(
+            (event) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _getEventColor(
+                        event['event_type'],
+                      ).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _getEventIcon(event['event_type']),
+                      size: 18,
+                      color: _getEventColor(event['event_type']),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          event['title'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                          ),
+                        ),
+                        if (event['description'] != null &&
+                            event['description'].toString().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              event['description'],
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            event['event_type'].toString().toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _getEventColor(event['event_type']),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 24),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0066CC),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: const Text("Close", style: TextStyle(color: Colors.white)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool isHighlighted = false,
+    Color? color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: color ?? Colors.blue),
+        const SizedBox(width: 12),
+        Text(
+          "$label:",
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: color ?? Colors.black87,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+              color: isHighlighted ? Colors.green[700] : Colors.black87,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
     );
   }
 }

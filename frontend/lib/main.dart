@@ -15,7 +15,9 @@ Future<void> main() async {
   Widget homeScreen;
 
   if (userEmail != null) {
-    homeScreen = isAdmin ? const AdminDashboard() : const DashboardScreen();
+    homeScreen = isAdmin
+        ? const AdminDashboardScreen()
+        : const DashboardScreen();
   } else {
     homeScreen = const LoginScreen();
   }

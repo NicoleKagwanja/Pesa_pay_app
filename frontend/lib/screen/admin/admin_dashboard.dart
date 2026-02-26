@@ -1,188 +1,105 @@
-// lib/screens/admin/admin_dashboard.dart
-// ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api
+// ignore_for_file: use_build_context_synchronously, unused_local_variable, deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pesa_pay/services/api_services.dart';
-import 'package:pesa_pay/widgets/attendance_chart.dart';
 
-class AdminDashboard extends StatefulWidget {
-  const AdminDashboard({super.key});
+class AdminDashboardScreen extends StatefulWidget {
+  const AdminDashboardScreen({super.key});
 
   @override
-  _AdminDashboardState createState() => _AdminDashboardState();
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardState extends State<AdminDashboard> {
-  List<Map<String, dynamic>> _employees = [];
-  List<Map<String, dynamic>> _attendanceReport = [];
-  List<Map<String, dynamic>> _calendarEvents = [];
-  bool _loading = true;
-  final ScrollController _scrollController = ScrollController();
-
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final APIService apiService = APIService();
+  bool _loading = true;
+  List<Map<String, dynamic>> _employees = [];
+  Map<String, dynamic>? _overview;
+  List<dynamic> _sharedEvents = [];
+
+  final _eventTitleController = TextEditingController();
+  final _eventDescController = TextEditingController();
+  DateTime _selectedEventDate = DateTime.now();
+  String _selectedEventType = 'general';
+  bool _addingEvent = false;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadAdminData();
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadData() async {
-    setState(() {
-      _loading = true;
-    });
-
+  Future<void> _loadAdminData() async {
     try {
-      final employees = await apiService.getAllEmployees();
-      final attendance = await apiService.getAttendanceReport();
-      final events = await apiService.getCalendarEvents();
+      final prefs = await SharedPreferences.getInstance();
+      final adminEmail = prefs.getString('user_email') ?? '';
+      final employees = await apiService.getAdminEmployees();
+      final overview = await apiService.getAdminAttendanceOverview();
+      final events = await apiService.getSharedEvents(
+        month: DateFormat('yyyy-MM').format(DateTime.now()),
+      );
 
       if (mounted) {
         setState(() {
           _employees = List<Map<String, dynamic>>.from(employees);
-          _attendanceReport = List<Map<String, dynamic>>.from(attendance);
-          _calendarEvents = List<Map<String, dynamic>>.from(events);
+          _overview = overview;
+          _sharedEvents = events;
           _loading = false;
         });
       }
-    } on Exception catch (e) {
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to load admin  $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _addSharedEvent() async {
+    if (_eventTitleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter an event title")),
+      );
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final adminEmail = prefs.getString('user_email') ?? '';
+
+      await apiService.createSharedEvent(
+        adminEmail: adminEmail,
+        title: _eventTitleController.text.trim(),
+        description: _eventDescController.text.trim(),
+        eventDate: _selectedEventDate,
+        eventType: _selectedEventType,
+      );
+
       if (mounted) {
         setState(() {
-          _loading = false;
+          _addingEvent = false;
+          _eventTitleController.clear();
+          _eventDescController.clear();
         });
+        _loadAdminData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Event added successfully!")),
+        );
       }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("❌ Failed to load data: $e"),
+          content: Text("Failed to add event: $e"),
           backgroundColor: Colors.red,
         ),
       );
     }
-  }
-
-  Future<void> _disburseSalaries() async {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Confirm Salary Disbursement"),
-        content: const Text(
-          "Are you sure you want to disburse salaries to all employees via IPF?\n\n"
-          "This action cannot be undone.",
-          style: TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                final result = await apiService.disburseSalaries();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("${result['message']}"),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } on Exception catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("Disbursement failed: $e"),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: const Text("Yes, Disburse"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _addCalendarEvent() async {
-    final titleCtrl = TextEditingController();
-    final dateCtrl = TextEditingController(text: '2025-08-15');
-    final typeCtrl = TextEditingController(text: 'event');
-    final descCtrl = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Add Calendar Event"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleCtrl,
-                decoration: const InputDecoration(labelText: "Title"),
-              ),
-              TextField(
-                controller: dateCtrl,
-                decoration: const InputDecoration(
-                  labelText: "Date (YYYY-MM-DD)",
-                ),
-              ),
-              TextField(
-                controller: typeCtrl,
-                decoration: const InputDecoration(labelText: "Type"),
-              ),
-              TextField(
-                controller: descCtrl,
-                decoration: const InputDecoration(labelText: "Description"),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                await apiService.addCalendarEvent(
-                  title: titleCtrl.text,
-                  date: dateCtrl.text,
-                  type: typeCtrl.text,
-                  description: descCtrl.text,
-                );
-                _loadData(); // Reload events
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text("✅ Event added!")));
-              } on Exception catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("❌ Failed: $e"),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: const Text("Add"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_email');
-    await prefs.remove('is_admin');
-    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
   @override
@@ -192,273 +109,513 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: const Text("Admin Dashboard"),
         elevation: 1,
         actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.red[100],
-              border: Border.all(color: Colors.red),
-              borderRadius: BorderRadius.circular(12),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: "Add Calendar Event",
+            onPressed: () => setState(() => _addingEvent = !_addingEvent),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: "Refresh",
+            onPressed: _loadAdminData,
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _addingEvent
+          ? _buildAddEventForm()
+          : _buildMainContent(),
+    );
+  }
+
+  Widget _buildAddEventForm() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() => _addingEvent = false),
+              ),
+              const Text(
+                "Add Calendar Event",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          TextField(
+            controller: _eventTitleController,
+            decoration: const InputDecoration(
+              labelText: "Event Title *",
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.title),
             ),
-            child: const Text(
-              "ADMIN MODE",
-              style: TextStyle(fontSize: 10, color: Colors.red),
+          ),
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: _eventDescController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: "Description",
+              hintText: "Optional details about this event",
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.description),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          ListTile(
+            title: const Text("Event Date"),
+            subtitle: Text(
+              DateFormat('EEEE, MMMM d, yyyy').format(_selectedEventDate),
+            ),
+            leading: const Icon(Icons.calendar_today),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedEventDate,
+                firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) {
+                setState(() => _selectedEventDate = picked);
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+
+          DropdownButtonFormField<String>(
+            value: _selectedEventType,
+            decoration: const InputDecoration(
+              labelText: "Event Type",
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.category),
+            ),
+            items: ['general', 'holiday', 'meeting', 'deadline', 'announcement']
+                .map(
+                  (type) => DropdownMenuItem(
+                    value: type,
+                    child: Text(type.toUpperCase()),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedEventType = value);
+            },
+          ),
+          const SizedBox(height: 24),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _addingEvent = false),
+                  child: const Text("Cancel"),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _addSharedEvent,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0066CC),
+                  ),
+                  child: const Text(
+                    "Add Event",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.people), text: "Employees"),
+              Tab(icon: Icon(Icons.analytics), text: "Overview"),
+              Tab(icon: Icon(Icons.event), text: "Calendar"),
+            ],
+            isScrollable: true,
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildEmployeesTab(),
+                _buildOverviewTab(),
+                _buildCalendarTab(),
+              ],
             ),
           ),
         ],
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            Container(
-              color: const Color.fromARGB(255, 70, 30, 100),
-              child: DrawerHeader(
-                margin: EdgeInsets.zero,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    const Text(
-                      "Pesa Pay\nAdmin Portal",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+    );
+  }
+
+  Widget _buildEmployeesTab() {
+    return RefreshIndicator(
+      onRefresh: _loadAdminData,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _employees.length,
+        itemBuilder: (context, index) {
+          final emp = _employees[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.blue[100],
+                child: Text(
+                  (emp['name'] ?? 'E')[0].toUpperCase(),
+                  style: const TextStyle(color: Colors.blue),
+                ),
+              ),
+              title: Text(emp['name'] ?? emp['email']),
+              subtitle: Text(
+                "${emp['department'] ?? 'Unknown'} • ${emp['email']}",
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.bar_chart),
+                tooltip: "View Attendance",
+                onPressed: () => _showEmployeeAttendance(emp['email']),
+              ),
+              onTap: () => _showEmployeeAttendance(emp['email']),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildOverviewTab() {
+    if (_overview == null) return const Center(child: Text("No overview data"));
+
+    final employees = _overview!['employees'] as List? ?? [];
+    final presentCount = _overview!['present_count'] ?? 0;
+    final totalCount = _overview!['total_employees'] ?? 0;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  "Total",
+                  totalCount.toString(),
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  "Present",
+                  presentCount.toString(),
+                  Colors.green,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  "Absent",
+                  (totalCount - presentCount).toString(),
+                  Colors.orange,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: employees.length,
+            itemBuilder: (context, index) {
+              final emp = employees[index];
+              final status = emp['today_status'] ?? 'unknown';
+              final statusColor = status == 'present'
+                  ? Colors.green
+                  : status == 'clocked_in'
+                  ? Colors.blue
+                  : status == 'absent'
+                  ? Colors.red
+                  : Colors.grey;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(emp['name'] ?? emp['email']),
+                  subtitle: Text(
+                    "${emp['month_hours']} hrs this month • ${emp['month_days']} days",
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  leading: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red[200],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        "ADMIN",
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        status.toUpperCase().replaceAll('_', ' '),
                         style: TextStyle(
-                          color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
+                          color: statusColor,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text("All Employees"),
-              onTap: () {
-                _scrollController.animateTo(
-                  0,
-                  duration: const Duration(seconds: 1),
-                  curve: Curves.easeInOut,
-                );
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.event_available),
-              title: const Text("Pending Requests"),
-              onTap: () {
-                _scrollController.animateTo(
-                  800.0,
-                  duration: const Duration(seconds: 1),
-                  curve: Curves.easeInOut,
-                );
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.attach_money),
-              title: const Text("Disburse Salaries"),
-              onTap: () {
-                _disburseSalaries();
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
-                "Logout",
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onTap: _logout,
-            ),
-          ],
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Admin Dashboard",
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Manage employees, off-weeks, and salary disbursement.",
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 24),
-
-                      ElevatedButton.icon(
-                        onPressed: _disburseSalaries,
-                        icon: const Icon(Icons.attach_money, size: 20),
-                        label: const Text("Disburse Salaries to All"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 16,
-                            horizontal: 20,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      if (emp['time_in'] != null)
+                        Text(
+                          "In: ${emp['time_in']}",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      const Text(
-                        "All Employees",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (_employees.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text(
-                              "No employees registered yet.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        )
-                      else
-                        ..._employees.map(
-                          (emp) => Card(
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.person,
-                                color: Colors.blue,
-                              ),
-                              title: Text(emp['name']),
-                              subtitle: Text(
-                                "${emp['department']} • ${emp['email']}",
-                              ),
-                              trailing: Text(
-                                "KES ${emp['salary']?.toStringAsFixed(2)}",
-                              ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 24),
-
-                      const Text(
-                        "Attendance Summary",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      AttendanceChartWidget(report: _attendanceReport),
-                      const SizedBox(height: 24),
-
-                      // Calendar Events with Add Button
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            "Calendar Events",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: _addCalendarEvent,
-                            icon: const Icon(Icons.add, size: 16),
-                            label: const Text("Add Event"),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (_calendarEvents.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text(
-                              "No calendar events yet.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        )
-                      else
-                        ..._calendarEvents.map(
-                          (e) => Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    e['title'],
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    "${e['type'].toUpperCase()} • ${e['date']}",
-                                  ),
-                                  if (e['description'] != null)
-                                    Text(e['description']),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 24),
                     ],
                   ),
+                  onTap: () => _showEmployeeAttendance(emp['email']),
                 ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 14, color: color.withOpacity(0.8)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.event, color: Colors.blue),
+              const SizedBox(width: 8),
+              Text(
+                "Shared Calendar Events",
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+
+        if (_sharedEvents.isEmpty)
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event_busy, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    "No events scheduled",
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => setState(() => _addingEvent = true),
+                    icon: const Icon(Icons.add),
+                    label: const Text("Add First Event"),
+                  ),
+                ],
               ),
             ),
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _sharedEvents.length,
+              itemBuilder: (context, index) {
+                final event = _sharedEvents[index];
+                final eventType = event['event_type'] ?? 'general';
+                final typeColor = eventType == 'holiday'
+                    ? Colors.red
+                    : eventType == 'meeting'
+                    ? Colors.blue
+                    : eventType == 'deadline'
+                    ? Colors.orange
+                    : Colors.purple;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: typeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        eventType == 'holiday'
+                            ? Icons.beach_access
+                            : eventType == 'meeting'
+                            ? Icons.meeting_room
+                            : eventType == 'deadline'
+                            ? Icons.flag
+                            : Icons.announcement,
+                        color: typeColor,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(event['title']),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (event['description'] != null)
+                          Text(
+                            event['description'],
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat(
+                                'EEEE, MMM d',
+                              ).format(DateTime.parse(event['event_date'])),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    trailing: PopupMenuButton(
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'edit', child: Text("Edit")),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text(
+                            "Delete",
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                      onSelected: (value) {
+                        if (value == 'delete') {
+                          _confirmDeleteEvent(event['id']);
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
+  }
+
+  Future<void> _showEmployeeAttendance(String email) async {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text("Viewing attendance for $email")));
+  }
+
+  Future<void> _confirmDeleteEvent(int eventId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Event"),
+        content: const Text("Are you sure you want to delete this event?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final adminEmail = prefs.getString('user_email') ?? '';
+        await apiService.deleteSharedEvent(eventId, adminEmail);
+        _loadAdminData();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to delete: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _eventTitleController.dispose();
+    _eventDescController.dispose();
+    super.dispose();
   }
 }

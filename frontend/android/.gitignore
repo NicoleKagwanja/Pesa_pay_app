@@ -12,3 +12,13 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.lock
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

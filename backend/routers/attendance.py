@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, date, timedelta
-import pytz # type: ignore
+import pytz
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from database import SessionLocal
@@ -257,3 +257,45 @@ def get_attendance_report(db: Session = Depends(get_db)):
         })
 
     return report
+
+@router.get("/attendance/day/{email}/{date_str}", operation_id="get_attendance_day_details")
+def get_attendance_day_details(email: str, date_str: str, db: Session = Depends(get_db)):
+    from datetime import datetime
+    
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    
+    record = db.query(Attendance).filter(
+        Attendance.employee_email == email,
+        Attendance.date == target_date
+    ).first()
+    
+    if not record:
+        return {
+            "date": date_str,
+            "has_attendance": False,
+            "message": "No attendance record for this date"
+        }
+    
+    total_hours = None
+    if record.time_in and record.time_out:
+        try:
+            time_in = datetime.strptime(record.time_in, "%H:%M")
+            time_out = datetime.strptime(record.time_out, "%H:%M")
+            if time_out < time_in:
+                time_out += timedelta(days=1)
+            total_hours = round((time_out - time_in).seconds / 3600, 2)
+        except:
+            total_hours = record.total_hours
+    
+    return {
+        "date": record.date.isoformat(),
+        "has_attendance": True,
+        "time_in": record.time_in,
+        "time_out": record.time_out,
+        "total_hours": total_hours or record.total_hours,
+        "status": record.status,
+        "employee_email": record.employee_email,
+    } 

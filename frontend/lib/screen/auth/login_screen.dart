@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (isAdmin) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const AdminDashboard()),
+            MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
           );
         } else {
           Navigator.pushReplacement(
